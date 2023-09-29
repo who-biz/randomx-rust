@@ -77,19 +77,24 @@ fn main() {
 		println!("cargo:rustc-link-search={}/build", out_dir);
 		println!("cargo:rustc-link-lib=randomx");
 
-        let target  = env::var("TARGET").unwrap();
-        if target.contains("apple")
-        {
-            println!("cargo:rustc-link-lib=dylib=c++");
-        }
-        else if target.contains("linux")
-        {
-            println!("cargo:rustc-link-lib=dylib=stdc++");
-        }
-        else
-        {
-            unimplemented!();
-        }
+	let target;
+	if env::var("TARGET").is_ok() {
+	        target  = env::var("TARGET").unwrap();
+
+	        if target.contains("apple")
+		{
+			println!("cargo:rustc-link-lib=dylib=c++");
+		}
+		else if target.contains("linux")
+		{
+			println!("cargo:rustc-link-lib=dylib=stdc++");
+		}
+	}
+	else
+	{
+		println!("cargo:rustc-link-lib=static-nobundle=c++");
+		println!("cargo:rustc-link-lib=static-nobundle=gcc");
+	}
 
 
 	}
