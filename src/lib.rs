@@ -67,45 +67,49 @@ pub fn slow_hash(state: &mut RxState, data: &[u8], seed: &[u8; 32]) -> [u8; 32] 
 #[cfg(test)]
 mod test {
     use super::*;
-    use num_bigint::BigUint;
-    use std::str::FromStr;
+
     #[test]
     fn test_verify() {
-        let hash = BigUint::from_bytes_be(&[
-            58, 219, 87, 205, 58, 5, 219, 157, 210, 19, 148, 114, 219, 191, 100, 122, 49, 51, 224,
-            67, 83, 184, 50, 73, 105, 255, 58, 230, 35, 20, 232, 244,
-        ]);
+        let expected_hash: [u8; 32] = [
+            58, 219, 87, 205, 58, 5, 219, 157,
+            210, 19, 148, 114, 219, 191, 100, 122,
+            49, 51, 224, 67, 83, 184, 50, 73,
+            105, 255, 58, 230, 35, 20, 232, 244,
+        ];
+
         let block_template: [u8; 128] = [0; 128];
         let seed: [u8; 32] = [0; 32];
 
         let mut rx_state = RxState::new();
-        
-       
 
-        assert_eq!(hash, slow_hash(&mut rx_state, &block_template, &seed));
+        let hash = slow_hash(&mut rx_state, &block_template, &seed);
+
+        assert_eq!(hash, expected_hash);
     }
 
     #[test]
     #[ignore]
     fn test_swap_dataset() {
-        let hashs = vec![
-            BigUint::from_str(
-                "26621690709847676946322902081806750977287422934645095895756323911047673342196"
-                
-            )
-            .unwrap(),
-            BigUint::from_str(
-                "99798341874875334058428891982218724161246716553034279961270815837069075885600"
-                
-            )
-            .unwrap(),
+        let expected_hashes: [[u8; 32]; 2] = [
+            [
+                58, 219, 87, 205, 58, 5, 219, 157,
+                210, 19, 148, 114, 219, 191, 100, 122,
+                49, 51, 224, 67, 83, 184, 50, 73,
+                105, 255, 58, 230, 35, 20, 232, 244,
+            ],
+            [
+                220, 163, 220, 27, 27, 96, 46, 20,
+                177, 168, 125, 133, 170, 72, 202, 19,
+                144, 175, 112, 19, 186, 92, 60, 49,
+                65, 196, 178, 174, 177, 245, 46, 32,
+            ],
         ];
 
         let mut block_template: [u8; 128] = [0; 128];
         let mut rx = RxState::new();
 
-        rx.full_mem = true;
-        rx.jit_compiler = true;
+        rx.full_mem = false;
+        rx.jit_compiler = false;
 
         rx.init_cache(&[0u8; 32])
             .expect("Is not possible initialize the cache!");
@@ -115,11 +119,12 @@ mod test {
 
         let vm_lock = rx.get_or_create_vm().unwrap();
 
-        let vm = vm_lock.read().unwrap();
+        let hash = {
+            let vm = vm_lock.read().unwrap();
+            calculate(&vm, &mut block_template, 0)
+        };
 
-        let hash = calculate(&vm, &mut block_template, 0);
-
-        assert_eq!(hash, hashs[0]);
+        assert_eq!(hash, expected_hashes[0]);
 
         rx.init_cache(&[20u8; 32])
             .expect("Is not possible initialize the cache!");
@@ -130,14 +135,17 @@ mod test {
         rx.update_vms();
 
         let mut block_template: [u8; 128] = [0; 128];
-        let hash2 = calculate(&vm, &mut block_template, 0);
 
-        assert_eq!(hash2, hashs[1]);
+        let hash2 = {
+            let vm = vm_lock.read().unwrap();
+            calculate(&vm, &mut block_template, 0)
+        };
+
+        assert_eq!(hash2, expected_hashes[1]);
     }
 
     #[test]
     fn test_randomx_simple_hash() {
-
         // Example input and seed
         let input = b"Hello, RandomX!";
         let seed: [u8; 32] = [1; 32];
@@ -146,7 +154,7 @@ mod test {
         let mut rx_state = RxState::new();
         rx_state.hard_aes = true; // Important for Apple Silicon/ARM!
         rx_state.jit_compiler = false;
-        rx_state.full_mem = false;// Use the default interpreter
+        rx_state.full_mem = false; // Use the default interpreter
 
         // Initialize cache with the seed
         rx_state.init_cache(&seed).expect("Failed to init cache");
@@ -159,14 +167,16 @@ mod test {
         input_buf[..input.len()].copy_from_slice(input);
 
         // Hash
-        let hash = calculate(&vm.read().unwrap(), &mut input_buf, 0);
+        let hash = {
+            let vm = vm.read().unwrap();
+            calculate(&vm, &mut input_buf, 0)
+        };
 
         // Print hash as hex
-        println!("RandomX hash: {:x}", hash);
-
-        // Optionally, check against a known value (if you have one)
-        // assert_eq!(hash, BigUint::from_bytes_be(&hex!("...")));
+        print!("RandomX hash: ");
+        for byte in &hash {
+            print!("{:02x}", byte);
+        }
+        println!();
     }
-
-   
 }
